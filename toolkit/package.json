@@ -1,0 +1,17 @@
+{
+  "name": "@pixelary/site-audit-toolkit",
+  "version": "1.0.0",
+  "description": "Pixelary website audit toolkit — baseline and post-migration analytics for law firm clients",
+  "type": "module",
+  "scripts": {
+    "audit": "node baseline-audit.mjs",
+    "seo": "node seo-crawler.mjs",
+    "compare": "node compare-reports.mjs",
+    "full-audit": "npm run audit && npm run seo"
+  },
+  "dependencies": {
+    "lighthouse": "^12.0.0",
+    "cheerio": "^1.0.0",
+    "node-fetch": "^3.3.2"
+  }
+}

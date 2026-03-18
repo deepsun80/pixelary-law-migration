@@ -1,0 +1,54 @@
+---
+/**
+ * SEOHead.astro — Drop-in SEO component for every page.
+ * 
+ * Usage in a layout:
+ *   <SEOHead
+ *     title="Smith & Associates | Dallas Family Law"
+ *     description="Experienced family law attorneys in Dallas, TX."
+ *     canonical="https://smithlaw.com/family-law"
+ *     ogImage="/images/og-default.jpg"
+ *   />
+ */
+
+interface Props {
+  title: string;
+  description: string;
+  canonical?: string;
+  ogImage?: string;
+  ogType?: string;
+  noindex?: boolean;
+}
+
+const {
+  title,
+  description,
+  canonical = Astro.url.href,
+  ogImage = "/images/og-default.jpg",
+  ogType = "website",
+  noindex = false,
+} = Astro.props;
+
+const siteName = "CLIENT_FIRM_NAME"; // ⚠️ UPDATE per client
+const resolvedOgImage = new URL(ogImage, Astro.site).href;
+---
+
+<!-- Primary Meta Tags -->
+<title>{title}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonical} />
+{noindex && <meta name="robots" content="noindex, nofollow" />}
+
+<!-- Open Graph -->
+<meta property="og:type" content={ogType} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:image" content={resolvedOgImage} />
+<meta property="og:url" content={canonical} />
+<meta property="og:site_name" content={siteName} />
+
+<!-- Twitter Card -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={resolvedOgImage} />

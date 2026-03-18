@@ -1,0 +1,8 @@
+# ⚠️ For staging: uncomment the Disallow line to prevent indexing
+# User-agent: *
+# Disallow: /
+
+User-agent: *
+Allow: /
+
+Sitemap: https://clientdomain.com/sitemap-index.xml
