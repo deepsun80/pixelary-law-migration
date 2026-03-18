@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+toolkit/node_modules/
+
+# Build output
+dist/
+.astro/
+
+# Cloudflare
+.wrangler/
+.dev.vars
+
+# Audit reports (client-specific data, don't track)
+toolkit/reports/*.json
+toolkit/reports/*.md
+
+# WordPress source (large, only needed during migration)
+wp-source/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Misc
+*.tgz
+.cache/
