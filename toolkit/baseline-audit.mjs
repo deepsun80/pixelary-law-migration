@@ -2,23 +2,24 @@
 
 /**
  * Pixelary Baseline Audit Script
- * 
+ *
  * Runs Google Lighthouse audits (mobile + desktop) against a live URL
  * and captures Core Web Vitals, performance scores, page weight, and
  * request counts. Saves results as JSON for later comparison.
- * 
+ *
  * Usage:
  *   node baseline-audit.mjs <url> [--label before|after] [--output ./reports]
- * 
+ *
  * Examples:
  *   node baseline-audit.mjs https://example-lawfirm.com --label before
  *   node baseline-audit.mjs https://new-site.pages.dev --label after
  */
 
-import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import lighthouse from "lighthouse";
+import { launch } from "chrome-launcher";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -49,42 +50,58 @@ fs.mkdirSync(outputDir, { recursive: true });
 // ---------------------------------------------------------------------------
 
 /**
- * Runs Lighthouse via the CLI (npx) for a given strategy.
- * Returns the parsed JSON report.
+ * Runs Lighthouse programmatically for a given strategy.
+ * Returns the parsed result object.
  */
-function runLighthouse(targetUrl, strategy = "mobile") {
-  const tmpFile = path.join(
-    outputDir,
-    `_tmp_lh_${strategy}_${Date.now()}.json`
-  );
-
+async function runLighthouse(targetUrl, chrome, strategy = "mobile") {
   console.log(`\n🔍 Running Lighthouse (${strategy}) on ${targetUrl} ...`);
 
+  const flags = {
+    port: chrome.port,
+    output: "json",
+    onlyCategories: ["performance", "accessibility", "best-practices", "seo"],
+    logLevel: "error",
+  };
+
+  // Desktop preset settings
+  const config =
+    strategy === "desktop"
+      ? {
+          extends: "lighthouse:default",
+          settings: {
+            formFactor: "desktop",
+            screenEmulation: {
+              mobile: false,
+              width: 1350,
+              height: 940,
+              deviceScaleFactor: 1,
+              disabled: false,
+            },
+            throttling: {
+              rttMs: 40,
+              throughputKbps: 10240,
+              cpuSlowdownMultiplier: 1,
+              requestLatencyMs: 0,
+              downloadThroughputKbps: 0,
+              uploadThroughputKbps: 0,
+            },
+            emulatedUserAgent:
+              "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          },
+        }
+      : undefined; // mobile uses default config
+
   try {
-    execSync(
-      `npx lighthouse "${targetUrl}" ` +
-        `--output=json ` +
-        `--output-path="${tmpFile}" ` +
-        `--chrome-flags="--headless --no-sandbox --disable-gpu" ` +
-        `--preset=${strategy === "desktop" ? "desktop" : "perf"} ` +
-        `--only-categories=performance,accessibility,best-practices,seo ` +
-        `--quiet`,
-      { stdio: "pipe", timeout: 120_000 }
-    );
+    const result = await lighthouse(targetUrl, flags, config);
+    return result?.lhr || null;
   } catch (err) {
     console.error(`⚠️  Lighthouse (${strategy}) failed: ${err.message}`);
     return null;
   }
-
-  if (!fs.existsSync(tmpFile)) return null;
-
-  const report = JSON.parse(fs.readFileSync(tmpFile, "utf-8"));
-  fs.unlinkSync(tmpFile); // clean up temp file
-  return report;
 }
 
 /**
- * Extracts the metrics we care about from a Lighthouse JSON report.
+ * Extracts the metrics we care about from a Lighthouse report.
  */
 function extractMetrics(report) {
   if (!report) return null;
@@ -102,7 +119,7 @@ function extractMetrics(report) {
   const cwv = {
     LCP_ms: audits["largest-contentful-paint"]?.numericValue ?? null,
     CLS: audits["cumulative-layout-shift"]?.numericValue ?? null,
-    TBT_ms: audits["total-blocking-time"]?.numericValue ?? null, // proxy for FID/INP in lab
+    TBT_ms: audits["total-blocking-time"]?.numericValue ?? null,
     FCP_ms: audits["first-contentful-paint"]?.numericValue ?? null,
     TTFB_ms: audits["server-response-time"]?.numericValue ?? null,
     SI_ms: audits["speed-index"]?.numericValue ?? null,
@@ -166,8 +183,20 @@ async function main() {
   console.log(`  Date: ${new Date().toISOString()}`);
   console.log(`${"=".repeat(60)}`);
 
-  const mobileReport = runLighthouse(url, "mobile");
-  const desktopReport = runLighthouse(url, "desktop");
+  // Launch Chrome once, reuse for both audits
+  console.log("\n🚀 Launching Chrome...");
+  const chrome = await launch({
+    chromeFlags: ["--headless", "--no-sandbox", "--disable-gpu"],
+  });
+
+  let mobileReport, desktopReport;
+
+  try {
+    mobileReport = await runLighthouse(url, chrome, "mobile");
+    desktopReport = await runLighthouse(url, chrome, "desktop");
+  } finally {
+    await chrome.kill();
+  }
 
   const result = {
     meta: {
@@ -175,7 +204,7 @@ async function main() {
       label,
       timestamp: new Date().toISOString(),
       tool: "pixelary-audit-toolkit",
-      version: "1.0.0",
+      version: "1.1.0",
     },
     mobile: extractMetrics(mobileReport),
     desktop: extractMetrics(desktopReport),
@@ -218,7 +247,9 @@ async function main() {
       `    Page weight: ${kb} KB  |  Requests: ${data.pageWeight.totalRequests}`
     );
     if (data.flags.length > 0) {
-      console.log(`    ⚠️  ${data.flags.length} optimization opportunities found`);
+      console.log(
+        `    ⚠️  ${data.flags.length} optimization opportunities found`
+      );
     }
   }
 
